@@ -39,11 +39,22 @@ impl SyncReport {
         let _ = writeln!(
             o,
             "{} sections, {} modules; {} files downloaded, {} unchanged, {} failed.",
-            self.sections, self.modules, self.downloaded, self.unchanged, self.failed.len()
+            self.sections,
+            self.modules,
+            self.downloaded,
+            self.unchanged,
+            self.failed.len()
         );
-        let _ = writeln!(o, "Start with {}/COURSE.md (index of all teacher text with links to every file; .txt/.md sidecars hold extracted text, archives are unpacked next to the .zip).", self.root.display());
+        let _ = writeln!(
+            o,
+            "Start with {}/COURSE.md (index of all teacher text with links to every file; .txt/.md sidecars hold extracted text, archives are unpacked next to the .zip).",
+            self.root.display()
+        );
         if !crate::extract::pdftotext_available() {
-            let _ = writeln!(o, "Note: pdftotext isn't installed, so PDFs have no .txt sidecar; read the PDF files directly.");
+            let _ = writeln!(
+                o,
+                "Note: pdftotext isn't installed, so PDFs have no .txt sidecar; read the PDF files directly."
+            );
         }
         if !self.failed.is_empty() {
             let _ = writeln!(o, "\nFailed:");
@@ -52,7 +63,10 @@ impl SyncReport {
             }
         }
         if !self.external_links.is_empty() {
-            let _ = writeln!(o, "\nExternal links (not downloaded, fetch separately if relevant):");
+            let _ = writeln!(
+                o,
+                "\nExternal links (not downloaded, fetch separately if relevant):"
+            );
             for (label, url) in &self.external_links {
                 let _ = writeln!(o, "- {label}: {url}");
             }
@@ -81,13 +95,24 @@ impl Ctx {
         let mut rel = rel;
         let mut n = 2;
         while self.claimed.contains(&rel) {
-            let stem = rel.file_stem().unwrap_or_default().to_string_lossy().into_owned();
-            let ext = rel.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+            let stem = rel
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            let ext = rel
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy()))
+                .unwrap_or_default();
             rel = rel.with_file_name(format!("{stem}-{n}{ext}"));
             n += 1;
         }
         self.claimed.insert(rel.clone());
-        self.jobs.push(Job { url: url.to_owned(), rel: rel.clone(), modified });
+        self.jobs.push(Job {
+            url: url.to_owned(),
+            rel: rel.clone(),
+            modified,
+        });
         rel
     }
 
@@ -111,14 +136,24 @@ pub fn slug(s: &str) -> String {
         }
     }
     let out = out.trim_end_matches('-').to_owned();
-    if out.is_empty() { "untitled".into() } else { out }
+    if out.is_empty() {
+        "untitled".into()
+    } else {
+        out
+    }
 }
 
 /// A file name that can't escape its folder.
 fn safe_name(s: &str) -> String {
     let n: String = s
         .chars()
-        .map(|c| if c == '/' || c == '\\' || c.is_control() || c == ':' { '_' } else { c })
+        .map(|c| {
+            if c == '/' || c == '\\' || c.is_control() || c == ':' {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     let n = n.trim().trim_start_matches('.').to_owned();
     if n.is_empty() { "file".into() } else { n }
@@ -137,7 +172,11 @@ pub fn date(ts: i64) -> String {
         return "-".into();
     }
     chrono::DateTime::from_timestamp(ts, 0)
-        .map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M").to_string())
+        .map(|d| {
+            d.with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M")
+                .to_string()
+        })
         .unwrap_or_default()
 }
 
@@ -152,15 +191,25 @@ fn rich(ctx: &mut Ctx, m: &Moodle, html: &str, up: &str, label: &str) -> String 
         return String::new();
     }
     let mut html = html.to_owned();
-    let urls: Vec<String> = PLUGINFILE.captures_iter(&html).map(|c| c[1].replace("&amp;", "&")).collect();
+    let urls: Vec<String> = PLUGINFILE
+        .captures_iter(&html)
+        .map(|c| c[1].replace("&amp;", "&"))
+        .collect();
     for url in urls {
         let clean = url.split('?').next().unwrap_or(&url);
         let name = clean.rsplit('/').next().unwrap_or("file");
         let name = safe_name(&percent_decode(name));
         let tag = &sha1_smol::Sha1::from(clean).digest().to_string()[..8];
         let rel = PathBuf::from("_media").join(format!("{tag}-{name}"));
-        let rel = if ctx.claimed.contains(&rel) { rel } else { ctx.file(&url, rel, 0) };
-        html = html.replace(&url.replace('&', "&amp;"), &format!("{up}{}", rel.display()));
+        let rel = if ctx.claimed.contains(&rel) {
+            rel
+        } else {
+            ctx.file(&url, rel, 0)
+        };
+        html = html.replace(
+            &url.replace('&', "&amp;"),
+            &format!("{up}{}", rel.display()),
+        );
         html = html.replace(&url, &format!("{up}{}", rel.display()));
     }
     for c in HREF.captures_iter(&html) {
@@ -177,12 +226,13 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut idx = 0;
     while idx < bytes.len() {
-        if bytes[idx] == b'%' && idx + 2 < bytes.len() {
-            if let Ok(b) = u8::from_str_radix(&s[idx + 1..idx + 3], 16) {
-                out.push(b);
-                idx += 3;
-                continue;
-            }
+        if bytes[idx] == b'%'
+            && idx + 2 < bytes.len()
+            && let Ok(b) = u8::from_str_radix(&s[idx + 1..idx + 3], 16)
+        {
+            out.push(b);
+            idx += 3;
+            continue;
         }
         out.push(bytes[idx]);
         idx += 1;
@@ -191,12 +241,24 @@ fn percent_decode(s: &str) -> String {
 }
 
 fn indent(text: &str) -> String {
-    text.lines().map(|l| if l.is_empty() { ">".to_owned() } else { format!("> {l}") }).collect::<Vec<_>>().join("\n")
+    text.lines()
+        .map(|l| {
+            if l.is_empty() {
+                ">".to_owned()
+            } else {
+                format!("> {l}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub async fn course_info(m: &Moodle, course_id: i64) -> Result<Value> {
     let v = m
-        .ws("core_course_get_courses_by_field", &[("field", "id".into()), ("value", course_id.to_string())])
+        .ws(
+            "core_course_get_courses_by_field",
+            &[("field", "id".into()), ("value", course_id.to_string())],
+        )
         .await?;
     Ok(arr(&v, "courses").first().cloned().unwrap_or(Value::Null))
 }
@@ -205,9 +267,17 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
     let info = course_info(m, course_id).await?;
     let title = s(&info, "fullname");
     let short = s(&info, "shortname");
-    let contents = m.ws("core_course_get_contents", &[("courseid", course_id.to_string())]).await?;
+    let contents = m
+        .ws(
+            "core_course_get_contents",
+            &[("courseid", course_id.to_string())],
+        )
+        .await?;
     let assigns = m
-        .ws("mod_assign_get_assignments", &[("courseids[0]", course_id.to_string())])
+        .ws(
+            "mod_assign_get_assignments",
+            &[("courseids[0]", course_id.to_string())],
+        )
         .await
         .unwrap_or(Value::Null);
     let assign_by_cm: HashMap<i64, Value> = arr(&assigns, "courses")
@@ -216,23 +286,48 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
         .map(|a| (i(a, "cmid"), a.clone()))
         .collect();
     let pages = m
-        .ws("mod_page_get_pages_by_courses", &[("courseids[0]", course_id.to_string())])
+        .ws(
+            "mod_page_get_pages_by_courses",
+            &[("courseids[0]", course_id.to_string())],
+        )
         .await
         .unwrap_or(Value::Null);
-    let page_by_cm: HashMap<i64, String> =
-        arr(&pages, "pages").iter().map(|p| (i(p, "coursemodule"), s(p, "content"))).collect();
+    let page_by_cm: HashMap<i64, String> = arr(&pages, "pages")
+        .iter()
+        .map(|p| (i(p, "coursemodule"), s(p, "content")))
+        .collect();
 
-    let root = opts.dest.join(slug(if short.is_empty() { &title } else { &short }));
+    let root = opts
+        .dest
+        .join(slug(if short.is_empty() { &title } else { &short }));
     std::fs::create_dir_all(root.join(".raw"))?;
-    std::fs::write(root.join(".raw/contents.json"), serde_json::to_string_pretty(&contents)?)?;
-    std::fs::write(root.join(".raw/assignments.json"), serde_json::to_string_pretty(&assigns)?)?;
+    std::fs::write(
+        root.join(".raw/contents.json"),
+        serde_json::to_string_pretty(&contents)?,
+    )?;
+    std::fs::write(
+        root.join(".raw/assignments.json"),
+        serde_json::to_string_pretty(&assigns)?,
+    )?;
 
     let mut ctx = Ctx::default();
-    let mut report = SyncReport { root: root.clone(), title: title.clone(), ..Default::default() };
+    let mut report = SyncReport {
+        root: root.clone(),
+        title: title.clone(),
+        ..Default::default()
+    };
     let mut md = String::new();
     let _ = writeln!(md, "# {title}\n");
-    let _ = writeln!(md, "- Moodle: {}/course/view.php?id={course_id}", m.base_url());
-    let _ = writeln!(md, "- Synced: {}\n", chrono::Local::now().format("%Y-%m-%d %H:%M"));
+    let _ = writeln!(
+        md,
+        "- Moodle: {}/course/view.php?id={course_id}",
+        m.base_url()
+    );
+    let _ = writeln!(
+        md,
+        "- Synced: {}\n",
+        chrono::Local::now().format("%Y-%m-%d %H:%M")
+    );
     let summary = rich(&mut ctx, m, &s(&info, "summary"), "", "Course summary");
     if !summary.is_empty() {
         let _ = writeln!(md, "{summary}\n");
@@ -280,34 +375,38 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
             }
             let label = format!("{name} / {mname}");
 
-            if kind == "assign" {
-                if let Some(a) = assign_by_cm.get(&cmid) {
-                    let due = i(a, "duedate");
-                    if due > 0 {
-                        let _ = writeln!(md, "Due: {}\n", date(due));
-                    }
-                    let intro = rich(&mut ctx, m, &s(a, "intro"), "", &label);
-                    if !intro.is_empty() {
-                        let _ = writeln!(md, "{}\n", indent(&intro));
-                    }
-                    let act = rich(&mut ctx, m, &s(a, "activity"), "", &label);
-                    if !act.is_empty() {
-                        let _ = writeln!(md, "**Instructions:**\n\n{}\n", indent(&act));
-                    }
-                    for f in arr(a, "introattachments") {
-                        let rel = ctx.file(&s(f, "fileurl"), mdir.join(safe_subpath(&s(f, "filepath"))).join(safe_name(&s(f, "filename"))), i(f, "timemodified"));
-                        let _ = writeln!(md, "- {{{{FILE:{}}}}}", rel.display());
-                    }
-                    if opts.include_feedback {
-                        if let Ok(fb) = feedback(m, &mut ctx, i(a, "id"), &mdir).await {
-                            if !fb.is_empty() {
-                                let _ = writeln!(md, "\n**Teacher feedback:**\n\n{fb}");
-                            }
-                        }
-                    }
-                    let _ = writeln!(md);
-                    continue;
+            if kind == "assign"
+                && let Some(a) = assign_by_cm.get(&cmid)
+            {
+                let due = i(a, "duedate");
+                if due > 0 {
+                    let _ = writeln!(md, "Due: {}\n", date(due));
                 }
+                let intro = rich(&mut ctx, m, &s(a, "intro"), "", &label);
+                if !intro.is_empty() {
+                    let _ = writeln!(md, "{}\n", indent(&intro));
+                }
+                let act = rich(&mut ctx, m, &s(a, "activity"), "", &label);
+                if !act.is_empty() {
+                    let _ = writeln!(md, "**Instructions:**\n\n{}\n", indent(&act));
+                }
+                for f in arr(a, "introattachments") {
+                    let rel = ctx.file(
+                        &s(f, "fileurl"),
+                        mdir.join(safe_subpath(&s(f, "filepath")))
+                            .join(safe_name(&s(f, "filename"))),
+                        i(f, "timemodified"),
+                    );
+                    let _ = writeln!(md, "- {{{{FILE:{}}}}}", rel.display());
+                }
+                if opts.include_feedback
+                    && let Ok(fb) = feedback(m, &mut ctx, i(a, "id"), &mdir).await
+                    && !fb.is_empty()
+                {
+                    let _ = writeln!(md, "\n**Teacher feedback:**\n\n{fb}");
+                }
+                let _ = writeln!(md);
+                continue;
             }
 
             let desc = rich(&mut ctx, m, &s(module, "description"), "", &label);
@@ -320,7 +419,11 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
                     let path = root.join(&mdir).join("page.md");
                     std::fs::create_dir_all(path.parent().unwrap())?;
                     std::fs::write(&path, format!("# {mname}\n\n{body}\n"))?;
-                    let _ = writeln!(md, "Page content: [{0}]({0})\n", mdir.join("page.md").display());
+                    let _ = writeln!(
+                        md,
+                        "Page content: [{0}]({0})\n",
+                        mdir.join("page.md").display()
+                    );
                     if body.len() < 3000 {
                         let _ = writeln!(md, "{}\n", indent(&body));
                     }
@@ -335,7 +438,9 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
                         ctx.link(&label, &url);
                     }
                     "file" if !url.is_empty() => {
-                        let rel = mdir.join(safe_subpath(&s(c, "filepath"))).join(safe_name(&s(c, "filename")));
+                        let rel = mdir
+                            .join(safe_subpath(&s(c, "filepath")))
+                            .join(safe_name(&s(c, "filename")));
                         let rel = ctx.file(&url, rel, i(c, "timemodified"));
                         let _ = writeln!(md, "- {{{{FILE:{}}}}}", rel.display());
                     }
@@ -343,7 +448,9 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
                 }
             }
             if kind == "forum" {
-                let posts = forum(m, &mut ctx, i(module, "instance"), &label).await.unwrap_or_default();
+                let posts = forum(m, &mut ctx, i(module, "instance"), &label)
+                    .await
+                    .unwrap_or_default();
                 if !posts.is_empty() {
                     let _ = writeln!(md, "{posts}");
                 }
@@ -402,7 +509,9 @@ pub async fn sync_course(m: &Moodle, course_id: i64, opts: &SyncOptions) -> Resu
 
     // Fill in file links now that sidecars exist.
     let md = FILE_REF
-        .replace_all(&md, |c: &regex::Captures| file_line(&root, Path::new(&c[1])))
+        .replace_all(&md, |c: &regex::Captures| {
+            file_line(&root, Path::new(&c[1]))
+        })
         .into_owned();
     let mut md = md;
     if !ctx.links.is_empty() {
@@ -434,7 +543,11 @@ fn file_line(root: &Path, rel: &Path) -> String {
         }
     }
     let unzipped = rel.with_extension("");
-    if rel.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip")) && root.join(&unzipped).is_dir() {
+    if rel
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("zip"))
+        && root.join(&unzipped).is_dir()
+    {
         let _ = write!(line, " · unpacked: [{0}/]({0}/)", unzipped.display());
     }
     line
@@ -442,9 +555,16 @@ fn file_line(root: &Path, rel: &Path) -> String {
 
 /// Grade + teacher comments (+ feedback files) for one assignment.
 async fn feedback(m: &Moodle, ctx: &mut Ctx, assign_id: i64, mdir: &Path) -> Result<String> {
-    let v = m.ws("mod_assign_get_submission_status", &[("assignid", assign_id.to_string())]).await?;
+    let v = m
+        .ws(
+            "mod_assign_get_submission_status",
+            &[("assignid", assign_id.to_string())],
+        )
+        .await?;
     let mut out = String::new();
-    let Some(fb) = v.get("feedback") else { return Ok(out) };
+    let Some(fb) = v.get("feedback") else {
+        return Ok(out);
+    };
     let grade = s(fb, "gradefordisplay");
     if !grade.is_empty() {
         let _ = writeln!(out, "- Grade: {}", extract::html_to_md(&grade));
@@ -459,7 +579,11 @@ async fn feedback(m: &Moodle, ctx: &mut Ctx, assign_id: i64, mdir: &Path) -> Res
         for area in arr(p, "fileareas") {
             for f in arr(area, "files") {
                 let name = safe_name(&s(f, "filename"));
-                let rel = ctx.file(&s(f, "fileurl"), mdir.join("feedback").join(name), i(f, "timemodified"));
+                let rel = ctx.file(
+                    &s(f, "fileurl"),
+                    mdir.join("feedback").join(name),
+                    i(f, "timemodified"),
+                );
                 let _ = writeln!(out, "- {{{{FILE:{}}}}}", rel.display());
             }
         }
@@ -470,17 +594,28 @@ async fn feedback(m: &Moodle, ctx: &mut Ctx, assign_id: i64, mdir: &Path) -> Res
 /// Announcement / forum posts (first post of each discussion).
 async fn forum(m: &Moodle, ctx: &mut Ctx, forum_id: i64, label: &str) -> Result<String> {
     let v = m
-        .ws("mod_forum_get_forum_discussions", &[("forumid", forum_id.to_string()), ("perpage", "50".into())])
+        .ws(
+            "mod_forum_get_forum_discussions",
+            &[("forumid", forum_id.to_string()), ("perpage", "50".into())],
+        )
         .await?;
     let mut out = String::new();
     for d in arr(&v, "discussions") {
-        let _ = writeln!(out, "#### {} ({}, {})\n", s(d, "subject"), s(d, "userfullname"), date(i(d, "created")));
+        let _ = writeln!(
+            out,
+            "#### {} ({}, {})\n",
+            s(d, "subject"),
+            s(d, "userfullname"),
+            date(i(d, "created"))
+        );
         let t = rich(ctx, m, &s(d, "message"), "", label);
         let _ = writeln!(out, "{}\n", indent(&t));
         for f in arr(d, "attachments") {
             let rel = ctx.file(
                 &s(f, "fileurl"),
-                PathBuf::from("_forum").join(i(d, "discussion").to_string()).join(safe_name(&s(f, "filename"))),
+                PathBuf::from("_forum")
+                    .join(i(d, "discussion").to_string())
+                    .join(safe_name(&s(f, "filename"))),
                 i(f, "timemodified"),
             );
             let _ = writeln!(out, "- {{{{FILE:{}}}}}", rel.display());

@@ -22,7 +22,8 @@ static WRITES: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 static REPO_WIDE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bgit\s+(stash|clean|reset\s+--hard|checkout\s+(\.|--\s*\.)|restore\s+\.)").unwrap()
+    Regex::new(r"\bgit\s+(stash|clean|reset\s+--hard|checkout\s+(\.|--\s*\.)|restore\s+\.)")
+        .unwrap()
 });
 static PATHS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"[^\s'"=;&|<>()]*practice[^\s'"=;&|<>()]*"#).unwrap());
@@ -74,7 +75,9 @@ pub fn guarded_dir(path: &Path) -> Option<PathBuf> {
 fn any_marked_below(dir: &Path) -> Option<PathBuf> {
     let mut stack = vec![dir.to_path_buf()];
     while let Some(d) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&d) else { continue };
+        let Ok(entries) = std::fs::read_dir(&d) else {
+            continue;
+        };
         for e in entries.flatten() {
             let p = e.path();
             if e.file_name() == ".student" {
@@ -93,7 +96,10 @@ fn check(input: &Value) -> Option<PathBuf> {
     let tool = input["tool_name"].as_str().unwrap_or("");
     let ti = &input["tool_input"];
     let cwd = PathBuf::from(input["cwd"].as_str().map(String::from).unwrap_or_else(|| {
-        std::env::current_dir().unwrap_or_default().display().to_string()
+        std::env::current_dir()
+            .unwrap_or_default()
+            .display()
+            .to_string()
     }));
     match tool {
         "Edit" | "Write" | "MultiEdit" | "NotebookEdit" => {
@@ -112,7 +118,13 @@ fn check(input: &Value) -> Option<PathBuf> {
                 candidates.push(cwd.clone());
             }
             candidates.into_iter().find_map(|c| {
-                guarded_dir(&c).or_else(|| if c.is_dir() { any_marked_below(&c) } else { None })
+                guarded_dir(&c).or_else(|| {
+                    if c.is_dir() {
+                        any_marked_below(&c)
+                    } else {
+                        None
+                    }
+                })
             })
         }
         _ => None,
@@ -124,7 +136,9 @@ pub fn run() -> i32 {
     if std::io::stdin().read_to_string(&mut raw).is_err() {
         return 0;
     }
-    let Ok(input) = serde_json::from_str::<Value>(&raw) else { return 0 };
+    let Ok(input) = serde_json::from_str::<Value>(&raw) else {
+        return 0;
+    };
     match check(&input) {
         Some(dir) => {
             eprintln!("Blocked: {} {MSG}", dir.display());

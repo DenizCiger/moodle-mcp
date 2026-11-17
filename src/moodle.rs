@@ -45,8 +45,22 @@ pub fn save(saved: &Saved) -> Result<PathBuf> {
 
 /// `https://host/moodle/course/view.php?id=1` → `https://host/moodle`.
 pub fn normalize_base_url(raw: &str) -> String {
-    let mut s = raw.trim().split(['?', '#']).next().unwrap_or("").trim_end_matches('/').to_owned();
-    for marker in ["/course/", "/my", "/login/", "/mod/", "/user/", "/index.php", "/admin/"] {
+    let mut s = raw
+        .trim()
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .trim_end_matches('/')
+        .to_owned();
+    for marker in [
+        "/course/",
+        "/my",
+        "/login/",
+        "/mod/",
+        "/user/",
+        "/index.php",
+        "/admin/",
+    ] {
         if let Some(at) = s.find(marker) {
             s.truncate(at);
         }
@@ -67,7 +81,11 @@ fn http() -> Result<reqwest::Client> {
 pub async fn request_token(base_url: &str, username: &str, password: &str) -> Result<String> {
     let resp: Value = http()?
         .post(format!("{base_url}/login/token.php"))
-        .form(&[("username", username), ("password", password), ("service", SERVICE)])
+        .form(&[
+            ("username", username),
+            ("password", password),
+            ("service", SERVICE),
+        ])
         .send()
         .await?
         .json()
@@ -105,11 +123,19 @@ impl Moodle {
                 (saved.base_url, saved.token)
             }
         };
-        Ok(Self { http: http()?, base_url: normalize_base_url(&base_url), token })
+        Ok(Self {
+            http: http()?,
+            base_url: normalize_base_url(&base_url),
+            token,
+        })
     }
 
     pub fn with_token(base_url: &str, token: &str) -> Result<Self> {
-        Ok(Self { http: http()?, base_url: normalize_base_url(base_url), token: token.to_owned() })
+        Ok(Self {
+            http: http()?,
+            base_url: normalize_base_url(base_url),
+            token: token.to_owned(),
+        })
     }
 
     pub fn base_url(&self) -> &str {
@@ -131,11 +157,16 @@ impl Moodle {
             .send()
             .await?;
         let status = resp.status();
-        let v: Value = resp.json().await.with_context(|| format!("{function}: HTTP {status}, not JSON"))?;
+        let v: Value = resp
+            .json()
+            .await
+            .with_context(|| format!("{function}: HTTP {status}, not JSON"))?;
         if v.get("exception").is_some() || v.get("errorcode").is_some() {
             let code = s(&v, "errorcode");
             if code == "invalidtoken" {
-                bail!("{function}: the saved Moodle login expired; the user has to run `moodle-mcp login` again");
+                bail!(
+                    "{function}: the saved Moodle login expired; the user has to run `moodle-mcp login` again"
+                );
             }
             bail!("{function}: {} ({code})", s(&v, "message"));
         }
@@ -145,8 +176,11 @@ impl Moodle {
     /// Turns any pluginfile link into one that the token can open.
     pub async fn authed_file_url(&self, url: &str) -> Result<reqwest::Url> {
         let mut u = reqwest::Url::parse(url).with_context(|| format!("bad file url {url}"))?;
-        if u.path().contains("/pluginfile.php") && !u.path().contains("/webservice/pluginfile.php") {
-            let p = u.path().replacen("/pluginfile.php", "/webservice/pluginfile.php", 1);
+        if u.path().contains("/pluginfile.php") && !u.path().contains("/webservice/pluginfile.php")
+        {
+            let p = u
+                .path()
+                .replacen("/pluginfile.php", "/webservice/pluginfile.php", 1);
             u.set_path(&p);
         }
         if !u.query_pairs().any(|(k, _)| k == "token") {
@@ -173,10 +207,10 @@ impl Moodle {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
             .to_owned();
-        if let Some(len) = resp.content_length() {
-            if len > max_bytes {
-                bail!("too large ({} MB)", len / 1_000_000);
-            }
+        if let Some(len) = resp.content_length()
+            && len > max_bytes
+        {
+            bail!("too large ({} MB)", len / 1_000_000);
         }
         if let Some(parent) = dest.parent() {
             tokio::fs::create_dir_all(parent).await?;
@@ -239,5 +273,8 @@ pub fn i(v: &Value, k: &str) -> i64 {
 }
 
 pub fn arr<'a>(v: &'a Value, k: &str) -> &'a [Value] {
-    v.get(k).and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[])
+    v.get(k)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
 }

@@ -9,7 +9,16 @@ use std::sync::LazyLock;
 
 /// Folders inside archives that are build output or tooling noise.
 const SKIP_DIRS: &[&str] = &[
-    "bin", "obj", ".git", "node_modules", ".vs", ".idea", "__MACOSX", "target", ".gradle", "dist",
+    "bin",
+    "obj",
+    ".git",
+    "node_modules",
+    ".vs",
+    ".idea",
+    "__MACOSX",
+    "target",
+    ".gradle",
+    "dist",
 ];
 const ZIP_MAX_TOTAL: u64 = 200_000_000;
 
@@ -34,7 +43,9 @@ pub fn extract(file: &Path) -> Result<Extracted> {
     let text = match ext.as_str() {
         "pdf" => pdf_text(file)?,
         "docx" => office_text(file, |n| n == "word/document.xml")?,
-        "pptx" => office_text(file, |n| n.starts_with("ppt/slides/slide") && n.ends_with(".xml"))?,
+        "pptx" => office_text(file, |n| {
+            n.starts_with("ppt/slides/slide") && n.ends_with(".xml")
+        })?,
         "xlsx" => office_text(file, |n| n == "xl/sharedStrings.xml")?,
         "odt" | "odp" | "ods" => office_text(file, |n| n == "content.xml")?,
         "html" | "htm" => {
@@ -45,7 +56,11 @@ pub fn extract(file: &Path) -> Result<Extracted> {
         }
         "zip" => {
             let dir = file.with_extension("");
-            let dir = if dir == file { sidecar("_unzipped") } else { dir };
+            let dir = if dir == file {
+                sidecar("_unzipped")
+            } else {
+                dir
+            };
             let n = unzip(file, &dir)?;
             return Ok(Extracted::Unzipped(dir, n));
         }
@@ -75,7 +90,11 @@ fn pdf_text(file: &Path) -> Result<String> {
 /// Text of the XML parts of an OOXML/ODF archive, parts in natural order.
 fn office_text(file: &Path, want: impl Fn(&str) -> bool) -> Result<String> {
     let mut zip = zip::ZipArchive::new(std::fs::File::open(file)?)?;
-    let mut names: Vec<String> = zip.file_names().filter_map(|n| n.ok().map(|c| c.into_owned())).filter(|n| want(n)).collect();
+    let mut names: Vec<String> = zip
+        .file_names()
+        .filter_map(|n| n.ok().map(|c| c.into_owned()))
+        .filter(|n| want(n))
+        .collect();
     names.sort_by_key(|n| {
         let digits: String = n.chars().filter(char::is_ascii_digit).collect();
         (digits.parse::<u64>().unwrap_or(0), n.clone())
@@ -85,15 +104,24 @@ fn office_text(file: &Path, want: impl Fn(&str) -> bool) -> Result<String> {
         let mut xml = String::new();
         zip.by_name(name)?.read_to_string(&mut xml)?;
         if names.len() > 1 {
-            out.push_str(&format!("\n--- {} {} ---\n", if name.contains("slide") { "Slide" } else { "Part" }, idx + 1));
+            out.push_str(&format!(
+                "\n--- {} {} ---\n",
+                if name.contains("slide") {
+                    "Slide"
+                } else {
+                    "Part"
+                },
+                idx + 1
+            ));
         }
         out.push_str(&xml_text(&xml));
     }
     Ok(out)
 }
 
-static PARA_END: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"</(w:p|a:p|text:p|text:h|si)>|<(w:br|text:line-break|a:br)\s*/?>").unwrap());
+static PARA_END: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"</(w:p|a:p|text:p|text:h|si)>|<(w:br|text:line-break|a:br)\s*/?>").unwrap()
+});
 static TAB: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(w:tab|text:tab)\s*/>").unwrap());
 static TAG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]*>").unwrap());
 static BLANKS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\n{3,}").unwrap());
@@ -131,8 +159,13 @@ fn unzip(file: &Path, dest: &Path) -> Result<usize> {
     let mut count = 0;
     for idx in 0..zip.len() {
         let mut entry = zip.by_index(idx)?;
-        let Some(rel) = entry.enclosed_name() else { continue };
-        if rel.components().any(|c| SKIP_DIRS.contains(&c.as_os_str().to_string_lossy().as_ref())) {
+        let Some(rel) = entry.enclosed_name() else {
+            continue;
+        };
+        if rel
+            .components()
+            .any(|c| SKIP_DIRS.contains(&c.as_os_str().to_string_lossy().as_ref()))
+        {
             continue;
         }
         let out = dest.join(&rel);
@@ -142,7 +175,10 @@ fn unzip(file: &Path, dest: &Path) -> Result<usize> {
         }
         total += entry.size();
         if total > ZIP_MAX_TOTAL {
-            bail!("archive unpacks to more than {} MB", ZIP_MAX_TOTAL / 1_000_000);
+            bail!(
+                "archive unpacks to more than {} MB",
+                ZIP_MAX_TOTAL / 1_000_000
+            );
         }
         if let Some(p) = out.parent() {
             std::fs::create_dir_all(p)?;
@@ -152,7 +188,10 @@ fn unzip(file: &Path, dest: &Path) -> Result<usize> {
         count += 1;
         // Nested docs inside archives get text sidecars too.
         if matches!(
-            out.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref(),
+            out.extension()
+                .and_then(|e| e.to_str())
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
             Some("pdf" | "docx" | "pptx" | "odt" | "odp")
         ) {
             let _ = extract(&out);
@@ -162,5 +201,8 @@ fn unzip(file: &Path, dest: &Path) -> Result<usize> {
 }
 
 pub fn pdftotext_available() -> bool {
-    std::process::Command::new("pdftotext").arg("-v").output().is_ok()
+    std::process::Command::new("pdftotext")
+        .arg("-v")
+        .output()
+        .is_ok()
 }

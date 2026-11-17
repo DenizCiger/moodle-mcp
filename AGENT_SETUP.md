@@ -11,8 +11,9 @@ You are setting up **moodle-exam-prep** (a Moodle MCP server, an exam-tutor skil
 ## 1. Install the `moodle-mcp` binary
 Detect the OS and architecture, then prefer the prebuilt release:
 - Download the matching asset from `https://github.com/DenizCiger/moodle-mcp/releases/latest`:
-  `moodle-mcp-x86_64-unknown-linux-gnu.tar.gz`, `moodle-mcp-aarch64-apple-darwin.tar.gz`, `moodle-mcp-x86_64-apple-darwin.tar.gz`, or `moodle-mcp-x86_64-pc-windows-msvc.zip`.
-- Unpack it into a user-level folder that is on `PATH` (e.g. `~/.local/bin` on Linux/macOS, `%USERPROFILE%\.local\bin` on Windows; add it to `PATH` if needed and tell the person). On macOS, if Gatekeeper blocks it: `xattr -d com.apple.quarantine <path>`.
+  `moodle-mcp-x86_64-unknown-linux-gnu.tar.gz`, `moodle-mcp-aarch64-unknown-linux-gnu.tar.gz`, `moodle-mcp-aarch64-apple-darwin.tar.gz`, `moodle-mcp-x86_64-apple-darwin.tar.gz`, or `moodle-mcp-x86_64-pc-windows-msvc.zip`.
+- Verify it against the matching `.sha256` file from the same release.
+- Unpack it and put the `moodle-mcp` binary into a user-level folder that is on `PATH` (e.g. `~/.local/bin` on Linux/macOS, `%USERPROFILE%\.local\bin` on Windows; add it to `PATH` if needed and tell the person). On macOS, if Gatekeeper blocks it: `xattr -d com.apple.quarantine <path>`.
 
 Fallback when there's no release or no matching asset: install Rust via rustup if missing (ask first), then
 `cargo install --git https://github.com/DenizCiger/moodle-mcp`.

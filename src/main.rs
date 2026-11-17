@@ -49,7 +49,11 @@ async fn login(url_arg: Option<&String>) -> Result<()> {
     let token = moodle::request_token(&base, &username, &password).await?;
     let m = moodle::Moodle::with_token(&base, &token)?;
     let info = m.ws("core_webservice_get_site_info", &[]).await?;
-    let path = moodle::save(&moodle::Saved { base_url: base.clone(), username, token })?;
+    let path = moodle::save(&moodle::Saved {
+        base_url: base.clone(),
+        username,
+        token,
+    })?;
     eprintln!(
         "\nSigned in as {} on {}.\nSaved to {}. Restart Claude Code so it picks up the login.",
         moodle::s(&info, "fullname"),
@@ -70,7 +74,11 @@ async fn status() -> Result<()> {
     );
     println!(
         "PDF text extraction: {}",
-        if extract::pdftotext_available() { "pdftotext found" } else { "pdftotext not found (optional; Claude then reads PDFs directly)" }
+        if extract::pdftotext_available() {
+            "pdftotext found"
+        } else {
+            "pdftotext not found (optional; Claude then reads PDFs directly)"
+        }
     );
     Ok(())
 }
@@ -95,7 +103,10 @@ async fn main() -> Result<()> {
             let m = moodle::Moodle::connect()?;
             let id = moodle::parse_id(&args[1])?;
             let opts = sync::SyncOptions {
-                dest: args.get(2).map(Into::into).unwrap_or_else(server::default_dest),
+                dest: args
+                    .get(2)
+                    .map(Into::into)
+                    .unwrap_or_else(server::default_dest),
                 include_feedback: true,
                 max_file_mb: 100,
             };

@@ -1,50 +1,104 @@
-name: release
+name: Release
 
+# Pushing a tag like v0.1.0 builds binaries and publishes a GitHub release.
+# Running the workflow manually only builds them (uploaded as run artifacts).
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: tar.gz }
-          - { os: macos-latest, target: aarch64-apple-darwin, ext: tar.gz }
-          - { os: macos-13, target: x86_64-apple-darwin, ext: tar.gz }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, ext: zip }
-    runs-on: ${{ matrix.os }}
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Verify tag matches crate version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CRATE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "$TAG_VERSION" != "$CRATE_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match Cargo.toml version ($CRATE_VERSION)."
+            exit 1
+          fi
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo build --release --locked --target ${{ matrix.target }}
-      - name: Package (unix)
-        if: matrix.ext == 'tar.gz'
-        run: tar -czf moodle-mcp-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release moodle-mcp
-      - name: Package (windows)
-        if: matrix.ext == 'zip'
-        shell: pwsh
-        run: Compress-Archive -Path target/${{ matrix.target }}/release/moodle-mcp.exe -DestinationPath moodle-mcp-${{ matrix.target }}.zip
-      - uses: actions/upload-artifact@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package archive
+        id: package
+        shell: bash
+        run: |
+          BIN=moodle-mcp
+          [ "${{ runner.os }}" = "Windows" ] && BIN=moodle-mcp.exe
+          ARCHIVE="moodle-mcp-${{ matrix.target }}.${{ matrix.archive }}"
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/$BIN" README.md LICENSE dist/
+          if [ "${{ matrix.archive }}" = "tar.gz" ]; then
+            tar -C dist -czf "$ARCHIVE" "$BIN" README.md LICENSE
+          else
+            cd dist
+            powershell.exe -NoProfile -Command "Compress-Archive -Path '$BIN','README.md','LICENSE' -DestinationPath '../$ARCHIVE' -Force"
+            cd ..
+          fi
+          # sha256sum on Linux and Git Bash, shasum on macOS; both write LF line endings.
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          else
+            shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
+          fi
+          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload run artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v5
         with:
           name: moodle-mcp-${{ matrix.target }}
-          path: moodle-mcp-${{ matrix.target }}.${{ matrix.ext }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
 
-  release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
+      - name: Upload release asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2.6.1
         with:
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: moodle-mcp-*
+          files: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          generate_release_notes: true
