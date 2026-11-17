@@ -1,0 +1,13 @@
+{
+  "name": "moodle-exam-prep",
+  "version": "0.2.0",
+  "description": "Personal exam tutor for Moodle courses: mirrors a course with the moodle MCP server, finds what you don't understand yet, and teaches the teacher's material step by step until you can do it alone under exam conditions.",
+  "author": { "name": "DenizCiger" },
+  "keywords": ["moodle", "exam", "study", "tutor", "school"],
+  "mcpServers": {
+    "moodle": {
+      "command": "moodle-mcp",
+      "args": []
+    }
+  }
+}
