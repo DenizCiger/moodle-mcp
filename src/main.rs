@@ -1,5 +1,4 @@
 mod extract;
-mod guard;
 mod moodle;
 mod server;
 mod sync;
@@ -7,15 +6,14 @@ mod sync;
 use anyhow::{Result, bail};
 use std::io::Write;
 
-const USAGE: &str = "moodle-mcp — Moodle MCP server for Claude Code
+const USAGE: &str = "moodle-mcp — read-only Moodle MCP server
 
 usage:
   moodle-mcp login [url]           sign in once (stores a token, never the password)
   moodle-mcp status                show which Moodle account is configured
   moodle-mcp logout                delete the saved login
-  moodle-mcp                       run the MCP server on stdio (Claude Code starts this)
+  moodle-mcp                       run the MCP server on stdio (your MCP client starts this)
   moodle-mcp sync <course> [dir]   mirror a course (id or URL) to disk
-  moodle-mcp guard                 PreToolUse hook protecting exam-prep practice folders
   moodle-mcp ws <function> k=v...  call a raw web-service function (debug)";
 
 fn prompt(label: &str) -> Result<String> {
@@ -55,7 +53,7 @@ async fn login(url_arg: Option<&String>) -> Result<()> {
         token,
     })?;
     eprintln!(
-        "\nSigned in as {} on {}.\nSaved to {}. Restart Claude Code so it picks up the login.",
+        "\nSigned in as {} on {}.\nSaved to {}. Restart your MCP client (e.g. Claude Code) so it picks up the login.",
         moodle::s(&info, "fullname"),
         moodle::s(&info, "sitename"),
         path.display()
@@ -88,7 +86,6 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None | Some("serve") => server::run().await,
-        Some("guard") => std::process::exit(guard::run()),
         Some("login") => login(args.get(1)).await,
         Some("status") => status().await,
         Some("logout") => {
